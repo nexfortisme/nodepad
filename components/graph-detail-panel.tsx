@@ -4,6 +4,23 @@ import * as React from "react"
 import { CONTENT_TYPE_CONFIG } from "@/lib/content-types"
 import type { TextBlock } from "@/components/tile-card"
 import { ExternalLink, Link as LinkIcon, Pin, RefreshCw, X } from "lucide-react"
+import ReactMarkdown from "react-markdown"
+import remarkGfm from "remark-gfm"
+
+const AnnotationMarkdownComponents = {
+  a: ({ href, children }: any) => (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex items-center gap-0.5 text-primary underline-offset-2 hover:underline"
+    >
+      <LinkIcon className="h-2.5 w-2.5 shrink-0" />
+      {children}
+    </a>
+  ),
+  p: ({ children }: any) => <span>{children}</span>,
+}
 
 // Inline URL linkifier — identical logic to tile-card.tsx
 function linkifyText(text: string): React.ReactNode {
@@ -277,14 +294,19 @@ export function GraphDetailPanel({
                 className="w-full resize-none rounded-sm bg-secondary/20 px-2 py-1.5 text-sm leading-relaxed text-foreground border border-primary/30 focus:outline-none focus:ring-1 focus:ring-primary/40"
               />
             ) : (
-              <p
+              <div
                 className="text-sm leading-relaxed text-muted-foreground cursor-text hover:bg-secondary/20 rounded-sm px-2 py-1 -mx-2 transition-colors border-l-2 pl-3"
                 style={{ borderColor: accent + "60" }}
                 onDoubleClick={() => { setDraftAnnotation(block.annotation ?? ""); setEditingAnnotation(true) }}
                 title="Double-click to edit"
               >
-                {block.annotation}
-              </p>
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={AnnotationMarkdownComponents as any}
+                >
+                  {block.annotation ?? ""}
+                </ReactMarkdown>
+              </div>
             )}
           </div>
         )}
