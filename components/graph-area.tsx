@@ -585,16 +585,16 @@ export function GraphArea({
                     {/* Icon */}
                     {Icon && (
                       <foreignObject
-                        x={-14} y={-14}
-                        width={28} height={28}
+                        x={-17} y={-17}
+                        width={34} height={34}
                         style={{ pointerEvents: "none" }}
                       >
                         <div
                           // @ts-ignore
                           xmlns="http://www.w3.org/1999/xhtml"
-                          style={{ width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center" }}
+                          style={{ width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center" }}
                         >
-                          <Icon style={{ width: 15, height: 15, color: "white", opacity: 0.92 }} />
+                          <Icon style={{ width: 19, height: 19, color: "white", opacity: 0.92 }} />
                         </div>
                       </foreignObject>
                     )}
@@ -610,22 +610,6 @@ export function GraphArea({
                         style={{ pointerEvents: "none" }}
                       >
                         ✦
-                      </text>
-                    )}
-
-                    {/* Short node label — always rendered, very subtle.
-                        Becomes legible when zoomed in. */}
-                    {!node.isSynthesis && label && (
-                      <text
-                        y={r + 14}
-                        textAnchor="middle"
-                        fontSize={8.5}
-                        fontFamily="sans-serif"
-                        fill="white"
-                        fillOpacity={isHovered ? 0.65 : 0.32}
-                        style={{ pointerEvents: "none", userSelect: "none", transition: "fill-opacity 0.15s" }}
-                      >
-                        {label}
                       </text>
                     )}
 
