@@ -73,6 +73,22 @@ export function TilingArea({
     setLockedConnectionId(prev => prev === id ? null : id)
   }, [])
 
+  // Clear lock when locked block's connections change (enrichment can change influencedBy)
+  useEffect(() => {
+    if (!lockedConnectionId) return
+    const lockedBlock = blocks.find(b => b.id === lockedConnectionId)
+    if (!lockedBlock || !lockedBlock.influencedBy?.length) {
+      setLockedConnectionId(null)
+    }
+  }, [blocks, lockedConnectionId])
+
+  // Escape key clears lock
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setLockedConnectionId(null) }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [])
+
   // 1. Chunking into elastic chunks — declared before effects that depend on them
   const chunkedPages = useMemo(() => {
     const gridBlocks = blocks
@@ -238,7 +254,14 @@ export function TilingArea({
       </AnimatePresence>
 
       {/* Paged Mosaic with Vertical Scroll */}
-      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto custom-scrollbar p-0.5 relative">
+      <div
+        ref={scrollContainerRef}
+        className="flex-1 overflow-y-auto custom-scrollbar p-0.5 relative"
+        onClick={e => {
+          // Clear connection lock when clicking the canvas background (not a tile)
+          if (e.target === e.currentTarget) setLockedConnectionId(null)
+        }}
+      >
         {pageTrees.length > 0 ? (
           <>
             <div className="flex flex-col w-full">
