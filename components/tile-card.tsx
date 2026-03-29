@@ -337,9 +337,9 @@ export const TileCard = memo(function TileCard({
             </button>
           )}
 
-          {/* Type display — read-only label; shimmer while enriching */}
+          {/* Type display — read-only label */}
           <Icon className="h-3 w-3 flex-shrink-0" />
-          <span className={`font-mono text-[10px] font-bold uppercase tracking-wider truncate max-w-[200px] ${block.isEnriching ? "shimmer-text" : ""}`}>
+          <span className="font-mono text-[10px] font-bold uppercase tracking-wider truncate max-w-[200px]">
             {config.label}
           </span>
 
@@ -537,7 +537,7 @@ export const TileCard = memo(function TileCard({
                         </span>
                       </div>
                     )}
-                    <div className={block.isEnriching ? "shimmer-text" : ""}>
+                    <div className={block.isEnriching ? "shimmer-body" : ""}>
                       {isTask && block.subTasks ? (
                         <div className="flex flex-col gap-2">
                           {block.subTasks.map(st => (
@@ -594,7 +594,7 @@ export const TileCard = memo(function TileCard({
                         </div>
                     ) : (
                         <div className="flex flex-col gap-2">
-                          <div className={`prose-sm prose-invert max-w-none text-[13px] leading-relaxed text-foreground/80 ${block.isEnriching ? "shimmer-text" : ""} ${isAnnotationRTL ? 'rtl-text' : ''}`}>
+                          <div className={`prose-sm prose-invert max-w-none text-[13px] leading-relaxed text-foreground/80 ${block.isEnriching ? "shimmer-body" : ""} ${isAnnotationRTL ? 'rtl-text' : ''}`}>
                             <ReactMarkdown 
                               remarkPlugins={[remarkGfm]}
                               components={MarkdownComponents as any}
