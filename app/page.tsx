@@ -9,6 +9,7 @@ import { ProjectSidebar } from "@/components/project-sidebar"
 import { StatusBar } from "@/components/status-bar"
 import { GhostPanel, type GhostNote } from "@/components/ghost-panel"
 import { VimInput } from "@/components/vim-input"
+import { IntroModal } from "@/components/intro-modal"
 import type { TextBlock } from "@/components/tile-card"
 import type { ContentType } from "@/lib/content-types"
 import { INITIAL_PROJECTS } from "@/lib/initial-data"
@@ -46,6 +47,9 @@ export default function Page() {
   const [viewMode, setViewMode] = useState<"tiling" | "kanban" | "graph">("tiling")
   const [isCommandKOpen, setIsCommandKOpen] = useState(false)
   const [jumpToSettings, setJumpToSettings] = useState(false)
+  const [isIntroOpen, setIsIntroOpen] = useState(false)
+  const [showHelpTooltip, setShowHelpTooltip] = useState(false)
+  const helpTooltipTimer = useRef<NodeJS.Timeout | null>(null)
   const { settings, updateSettings, resolvedModelId, currentModel } = useAISettings()
   const debounceTimers = useRef<Record<string, Record<string, NodeJS.Timeout>>>({})
 
@@ -70,6 +74,20 @@ export default function Page() {
   // Clean up undo toast timer on unmount
   useEffect(() => () => {
     if (undoToastTimer.current) clearTimeout(undoToastTimer.current)
+  }, [])
+
+  // ── Intro modal ──────────────────────────────────────────────────────────
+  const handleIntroClose = useCallback(() => {
+    setIsIntroOpen(false)
+    localStorage.setItem("nodepad-intro-seen", "true")
+    // Show the help tooltip for 6 seconds pointing to the ? button
+    setShowHelpTooltip(true)
+    if (helpTooltipTimer.current) clearTimeout(helpTooltipTimer.current)
+    helpTooltipTimer.current = setTimeout(() => setShowHelpTooltip(false), 6000)
+  }, [])
+
+  useEffect(() => () => {
+    if (helpTooltipTimer.current) clearTimeout(helpTooltipTimer.current)
   }, [])
 
   const undo = useCallback(() => {
@@ -168,6 +186,11 @@ export default function Page() {
     setProjects(initialProjects)
     setActiveProjectId(initialActiveId)
     setIsLoaded(true)
+
+    // Show intro modal on first visit
+    if (!localStorage.getItem("nodepad-intro-seen")) {
+      setIsIntroOpen(true)
+    }
 
   }, [])
 
@@ -883,6 +906,11 @@ export default function Page() {
           onIndexToggle={() => setIsIndexOpen(!isIndexOpen)}
           onGhostPanelToggle={() => setIsGhostPanelOpen(prev => !prev)}
           modelLabel={settings.apiKey ? currentModel.shortLabel : undefined}
+          showHelpTooltip={showHelpTooltip}
+          onHelpTooltipDismiss={() => {
+            setShowHelpTooltip(false)
+            if (helpTooltipTimer.current) clearTimeout(helpTooltipTimer.current)
+          }}
         />
 
         {!settings.apiKey && (
@@ -999,11 +1027,14 @@ export default function Page() {
       <TileIndex 
         blocks={blocks} 
         onHighlight={setHighlightedBlockId} 
-        highlightedId={highlightedBlockId} 
+        highlightedId={highlightedBlockId}
         onClose={() => setIsIndexOpen(false)}
         isOpen={isIndexOpen}
         viewMode={viewMode}
       />
+
+      {/* First-visit intro video modal */}
+      <IntroModal open={isIntroOpen} onClose={handleIntroClose} />
     </div>
   )
 }
