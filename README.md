@@ -1,8 +1,12 @@
 # nodepad
 
-![nodepad](public/nodepad.jpg)
+**A design experiment in spatial, AI-augmented thinking.**
 
-A spatial research tool that uses AI to augment thinking — not replace it.
+[![Watch the intro](https://img.youtube.com/vi/nCLY7rHAjWE/maxresdefault.jpg)](https://www.youtube.com/watch?v=nCLY7rHAjWE)
+
+*[Watch the intro →](https://www.youtube.com/watch?v=nCLY7rHAjWE)*
+
+---
 
 Most AI tools are built around a chat interface: you ask, it answers, you ask again. The interaction is sequential, conversational, and optimised for producing output. nodepad is built around a different premise: that thinking is spatial and associative, and that AI is most useful when it works quietly in the background rather than at the centre of attention.
 
@@ -16,13 +20,13 @@ Notes are typed into the input bar and placed onto a spatial canvas. Each note i
 
 Connections between notes are inferred from content. When you hover a connection indicator, unrelated notes dim. When enough notes accumulate, a synthesis emerges — a single sentence that bridges the tensions across the canvas. You can solidify it into a thesis note or dismiss it.
 
-Three views: tiling (spatial BSP grid), kanban (grouped by type), graph (force-directed, centrality-radial).
+Three views: **tiling** (spatial BSP grid), **kanban** (grouped by type), **graph** (force-directed, centrality-radial).
 
 ---
 
 ## Setup
 
-**Requirements**: a desktop browser, an [OpenRouter](https://openrouter.ai) API key.
+**Requirements**: a desktop browser and an [OpenRouter](https://openrouter.ai) API key.
 
 ```bash
 git clone https://github.com/mskayyali/nodepad.git
@@ -33,9 +37,9 @@ npm run dev
 
 Open [localhost:3000](http://localhost:3000).
 
-**Add your API key**: click the menu icon (top-left) → Settings → paste your OpenRouter key. The key is stored in your browser's localStorage and never sent anywhere except directly to OpenRouter.
+**Add your API key**: click the menu icon (top-left) → Settings → paste your OpenRouter key. The key is stored in your browser's `localStorage` and goes directly to OpenRouter — it never passes through any server.
 
-**Enable web grounding** (optional): toggle "Web grounding" in Settings to let the AI cite real sources for claims, questions, and references. Works with models that support the `:online` suffix — GPT-4o, Gemini 2.5 Pro, Mistral Small.
+**Enable web grounding** (optional): toggle "Web grounding" in Settings to let the AI cite real sources for claims, questions, and references. Works with models that support the `:online` suffix.
 
 ---
 
@@ -45,7 +49,7 @@ Select from the sidebar Settings panel. Default is GPT-4o.
 
 | Model | Notes |
 |---|---|
-| `openai/gpt-4o` | Default. Best annotation quality. |
+| `openai/gpt-4o` | Default. Strong annotation quality. |
 | `anthropic/claude-sonnet-4-5` | Strong reasoning, good for complex research. |
 | `google/gemini-2.5-pro` | Supports web grounding. |
 | `deepseek/deepseek-chat` | Fast, cost-effective. |
@@ -58,14 +62,11 @@ Select from the sidebar Settings panel. Default is GPT-4o.
 | | |
 |---|---|
 | `Enter` | Add note |
-| `⌘1 / ⌘2 / ⌘3` | Tiling / Kanban / Graph view |
-| `⌘K` | Command palette (export, navigate, actions) |
-| `⌘I` | Toggle canvas index |
-| `⌘G` | Toggle synthesis panel |
+| `⌘K` | Command palette (views, navigation, export) |
 | `⌘Z` | Undo |
-| `Escape` | Deselect (graph) / close panels |
+| `Escape` | Deselect / close panels |
 
-Double-click any note to edit. Click the category badge to reassign it.
+Double-click any note to edit. Click the type label to reclassify manually.
 
 ---
 
@@ -82,8 +83,8 @@ Everything lives in your browser. No account, no server, no database.
 
 ## Tech
 
-Next.js 16 · React 19 · TypeScript · Tailwind CSS v4 · D3.js · Framer Motion · OpenRouter API
+Next.js · React 19 · TypeScript · Tailwind CSS v4 · D3.js · Framer Motion · OpenRouter API
 
 ---
 
-A design experiment by [Saleh Kayyali](https://github.com/mskayyali).
+A design experiment by [Saleh Kayyali](http://mskayyali.com).
