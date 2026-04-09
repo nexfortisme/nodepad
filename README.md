@@ -48,7 +48,7 @@ Open [localhost:3000](http://localhost:3000).
 Select provider and model from the sidebar Settings panel. Each provider remembers its key independently — switching providers and back restores your key.
 
 ### OpenRouter *(default)*
-Access to all major models through a single key. Free credits available at [openrouter.ai](https://openrouter.ai).
+Access to all major models through a single key. Create a free account at [openrouter.ai](https://openrouter.ai) — use the free-tier models below with no credits, or add credits for GPT-4o, Claude, and Gemini.
 
 | Model | Notes |
 |---|---|
