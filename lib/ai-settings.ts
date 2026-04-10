@@ -1,6 +1,11 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
+import {
+  DEFAULT_LOCAL_FETCHER_MCP_URL,
+  DEFAULT_LOCAL_SEARX_URL,
+  parseHttpServiceBase,
+} from "@/lib/local-grounding"
 
 export interface AIModel {
   id: string
@@ -12,14 +17,15 @@ export interface AIModel {
   groundingModelId?: string
 }
 
-export type AIProvider = "openrouter" | "openai" | "zai"
+export type AIProvider = "openrouter" | "openai" | "zai" | "local"
 
 export interface AIProviderPreset {
   id: AIProvider
   label: string
   baseUrl: string
-  keyUrl: string
+  keyUrl?: string
   keyPlaceholder: string
+  requiresApiKey: boolean
 }
 
 export const AI_PROVIDER_PRESETS: AIProviderPreset[] = [
@@ -29,6 +35,7 @@ export const AI_PROVIDER_PRESETS: AIProviderPreset[] = [
     baseUrl: "https://openrouter.ai/api/v1",
     keyUrl: "https://openrouter.ai/settings/keys",
     keyPlaceholder: "sk-or-v1-...",
+    requiresApiKey: true,
   },
   {
     id: "openai",
@@ -36,6 +43,7 @@ export const AI_PROVIDER_PRESETS: AIProviderPreset[] = [
     baseUrl: "https://api.openai.com/v1",
     keyUrl: "https://platform.openai.com/api-keys",
     keyPlaceholder: "sk-...",
+    requiresApiKey: true,
   },
   {
     id: "zai",
@@ -43,6 +51,14 @@ export const AI_PROVIDER_PRESETS: AIProviderPreset[] = [
     baseUrl: "https://api.z.ai/api/paas/v4",
     keyUrl: "https://z.ai/manage-apikey/apikey-list",
     keyPlaceholder: "Your Z.ai API key",
+    requiresApiKey: true,
+  },
+  {
+    id: "local",
+    label: "Local (LM Studio)",
+    baseUrl: "http://127.0.0.1:1234/v1",
+    keyPlaceholder: "Not required (optional)",
+    requiresApiKey: false,
   },
 ]
 
@@ -174,9 +190,20 @@ export const ZAI_MODELS: AIModel[] = [
   },
 ]
 
+export const LOCAL_MODELS: AIModel[] = [
+  {
+    id: "google/gemma-4-26b-a4b",
+    label: "Gemma 4 26B",
+    shortLabel: "Gemma 4",
+    description: "Local model via LM Studio (OpenAI-compatible API)",
+    supportsGrounding: true,
+  },
+]
+
 export function getModelsForProvider(provider: AIProvider): AIModel[] {
   if (provider === "openai") return OPENAI_MODELS
   if (provider === "zai")    return ZAI_MODELS
+  if (provider === "local")  return LOCAL_MODELS
   return AI_MODELS // openrouter + safe fallback for any stale localStorage value
 }
 
@@ -189,22 +216,36 @@ export interface AISettings {
   webGrounding: boolean
   provider: AIProvider
   customBaseUrl: string
+  /** SearXNG base URL (`format=json` must be enabled). Empty uses default in lib/local-grounding. */
+  localGroundingSearxUrl?: string
+  /** fetcher-mcp Streamable HTTP URL (e.g. …/mcp). Empty uses default in lib/local-grounding. */
+  localGroundingFetcherMcpUrl?: string
   /** Per-provider key store so switching back to a provider restores its key */
   providerKeys?: Partial<Record<AIProvider, string>>
 }
 
 const STORAGE_KEY = "nodepad-ai-settings"
 
+const SETTINGS_TEMPLATE: AISettings = {
+  apiKey: "",
+  modelId: DEFAULT_MODEL_ID,
+  webGrounding: false,
+  provider: DEFAULT_PROVIDER,
+  customBaseUrl: "",
+  localGroundingSearxUrl: "",
+  localGroundingFetcherMcpUrl: "",
+}
+
 function loadSettings(): AISettings {
   if (typeof window === "undefined") {
-    return { apiKey: "", modelId: DEFAULT_MODEL_ID, webGrounding: false, provider: DEFAULT_PROVIDER, customBaseUrl: "" }
+    return { ...SETTINGS_TEMPLATE }
   }
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return { apiKey: "", modelId: DEFAULT_MODEL_ID, webGrounding: false, provider: DEFAULT_PROVIDER, customBaseUrl: "" }
-    return { apiKey: "", modelId: DEFAULT_MODEL_ID, webGrounding: false, provider: DEFAULT_PROVIDER, customBaseUrl: "", ...JSON.parse(raw) }
+    if (!raw) return { ...SETTINGS_TEMPLATE }
+    return { ...SETTINGS_TEMPLATE, ...JSON.parse(raw) }
   } catch {
-    return { apiKey: "", modelId: DEFAULT_MODEL_ID, webGrounding: false, provider: DEFAULT_PROVIDER, customBaseUrl: "" }
+    return { ...SETTINGS_TEMPLATE }
   }
 }
 
@@ -214,11 +255,19 @@ export interface AIConfig {
   supportsGrounding: boolean
   provider: AIProvider
   customBaseUrl: string
+  /** Resolved SearXNG base when provider is local (for server-side grounding). */
+  localGroundingSearxUrl: string
+  /** Resolved fetcher-mcp endpoint when provider is local. */
+  localGroundingFetcherMcpUrl: string
+}
+
+export function providerRequiresApiKey(provider: AIProvider): boolean {
+  return getPreset(provider).requiresApiKey
 }
 
 export function loadAIConfig(): AIConfig | null {
   const s = loadSettings()
-  if (!s.apiKey) return null
+  if (providerRequiresApiKey(s.provider) && !s.apiKey) return null
   const models = getModelsForProvider(s.provider)
   const model = models.find(m => m.id === s.modelId)
   // Use the matched model's id if found; otherwise fall back to the first model
@@ -226,22 +275,35 @@ export function loadAIConfig(): AIConfig | null {
   // OpenRouter-prefixed id (e.g. "openai/gpt-4o") after switching to OpenAI —
   // that string won't match any entry in OPENAI_MODELS so we fall back to "gpt-4o".
   const modelId = model?.id ?? models[0]?.id ?? s.modelId ?? DEFAULT_MODEL_ID
-  // Z.ai does not support grounding; only openrouter and openai do
+  const modelGroundOk = (model?.supportsGrounding ?? false) && s.webGrounding
+  const searxResolved = (s.localGroundingSearxUrl?.trim() || DEFAULT_LOCAL_SEARX_URL)
+  const mcpResolved = (s.localGroundingFetcherMcpUrl?.trim() || DEFAULT_LOCAL_FETCHER_MCP_URL)
+  const localGroundingUrlsOk =
+    parseHttpServiceBase(searxResolved) != null && parseHttpServiceBase(mcpResolved) != null
+  // Z.ai: no grounding. Cloud: OpenRouter / OpenAI native search. Local: SearXNG + fetcher-mcp via /api/local-ground.
   const supportsGrounding =
-    (s.provider === "openrouter" || s.provider === "openai") &&
-    s.webGrounding &&
-    (model?.supportsGrounding ?? false)
-  return { apiKey: s.apiKey, modelId, supportsGrounding, provider: s.provider, customBaseUrl: s.customBaseUrl }
+    modelGroundOk &&
+    ((s.provider === "openrouter" || s.provider === "openai") ||
+      (s.provider === "local" && localGroundingUrlsOk))
+  return {
+    apiKey: s.apiKey,
+    modelId,
+    supportsGrounding,
+    provider: s.provider,
+    customBaseUrl: s.customBaseUrl,
+    localGroundingSearxUrl: searxResolved,
+    localGroundingFetcherMcpUrl: mcpResolved,
+  }
 }
 
 export function getBaseUrl(config: AIConfig): string {
-  return getPreset(config.provider).baseUrl
+  return config.customBaseUrl.trim() || getPreset(config.provider).baseUrl
 }
 
 export function getProviderHeaders(config: AIConfig): Record<string, string> {
-  const base: Record<string, string> = {
-    "Content-Type": "application/json",
-    "Authorization": `Bearer ${config.apiKey}`,
+  const base: Record<string, string> = { "Content-Type": "application/json" }
+  if (config.apiKey.trim()) {
+    base["Authorization"] = `Bearer ${config.apiKey}`
   }
   if (config.provider === "openrouter") {
     base["HTTP-Referer"] = "https://nodepad.space"
@@ -272,6 +334,7 @@ export function useAISettings() {
   const [settings, setSettings] = useState<AISettings>({
     apiKey: "", modelId: DEFAULT_MODEL_ID, webGrounding: false,
     provider: DEFAULT_PROVIDER, customBaseUrl: "",
+    localGroundingSearxUrl: "", localGroundingFetcherMcpUrl: "",
   })
   const [isHydrated, setIsHydrated] = useState(false)
 

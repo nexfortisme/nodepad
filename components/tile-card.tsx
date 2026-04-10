@@ -231,16 +231,21 @@ export const TileCard = memo(function TileCard({
     if (effectiveCollapsed) return
     const target = e.target as HTMLElement
     if (target.closest('a')) return
+    if (target.closest('.annotation-area')) {
+      setEditingMinHeight(cardRef.current?.offsetHeight)
+      setEditAnnotation(block.annotation || "")
+      setIsEditingAnnotation(true)
+      return
+    }
+    if (block.isError) {
+      onReEnrich(block.id)
+      return
+    }
     // Capture current height before any state changes to prevent shrink during editing
     setEditingMinHeight(cardRef.current?.offsetHeight)
-    if (target.closest('.annotation-area')) {
-       setEditAnnotation(block.annotation || "")
-       setIsEditingAnnotation(true)
-       return
-    }
     setEditText(block.text)
     setIsEditing(true)
-  }, [block.text, block.annotation, effectiveCollapsed])
+  }, [block.text, block.annotation, effectiveCollapsed, block.isError, block.id, onReEnrich])
 
   const isTextRTL = useMemo(() => isRTL(block.text), [block.text])
   const isAnnotationRTL = useMemo(() => isRTL(block.annotation || ""), [block.annotation])

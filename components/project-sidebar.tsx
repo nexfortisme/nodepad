@@ -23,9 +23,11 @@ import {
   AI_PROVIDER_PRESETS,
   getModelsForProvider,
   getPreset,
+  providerRequiresApiKey,
   type AISettings,
   type AIProvider,
 } from "@/lib/ai-settings"
+import { DEFAULT_LOCAL_FETCHER_MCP_URL, DEFAULT_LOCAL_SEARX_URL } from "@/lib/local-grounding"
 
 interface Project {
   id: string
@@ -132,6 +134,7 @@ export function ProjectSidebar({
   const currentPreset = getPreset(draft.provider)
   const models = getModelsForProvider(draft.provider)
   const selectedModel = models.find(m => m.id === draft.modelId) || models[0] || undefined
+  const keyIsRequired = providerRequiresApiKey(draft.provider)
 
   return (
     <div
@@ -352,7 +355,7 @@ export function ProjectSidebar({
                 {/* API Key */}
                 <div className="flex flex-col gap-2">
                   <label className="font-mono text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
-                    API Key
+                    API Key {keyIsRequired ? "" : "(Optional)"}
                   </label>
                   <div className="flex items-center gap-2 rounded-md border border-white/10 bg-white/[0.04] px-2.5 py-2 focus-within:border-primary/50 transition-colors">
                     <Key className="h-3 w-3 shrink-0 text-muted-foreground" />
@@ -372,12 +375,35 @@ export function ProjectSidebar({
                   </div>
                   <p className="font-mono text-[9px] text-muted-foreground leading-relaxed">
                     Stored locally. Never sent to a server.{" "}
-                    {currentPreset.keyUrl && (
+                    {currentPreset.keyUrl ? (
                       <a href={currentPreset.keyUrl} target="_blank" rel="noopener noreferrer"
                         className="text-primary underline hover:brightness-125 transition-all">
                         Get a key →
                       </a>
+                    ) : (
+                      <span>Not required for this provider.</span>
                     )}
+                  </p>
+                </div>
+
+                {/* Base URL (mainly for local/self-hosted providers) */}
+                <div className="flex flex-col gap-2">
+                  <label className="font-mono text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
+                    Base URL
+                  </label>
+                  <div className="flex items-center gap-2 rounded-md border border-white/10 bg-white/[0.04] px-2.5 py-2 focus-within:border-primary/50 transition-colors">
+                    <input
+                      type="text"
+                      value={draft.customBaseUrl}
+                      onChange={e => setDraft(d => ({ ...d, customBaseUrl: e.target.value }))}
+                      placeholder={currentPreset.baseUrl}
+                      className="flex-1 bg-transparent font-mono text-[11px] text-foreground outline-none placeholder:text-muted-foreground/40"
+                      autoComplete="off"
+                      spellCheck={false}
+                    />
+                  </div>
+                  <p className="font-mono text-[9px] text-muted-foreground leading-relaxed">
+                    Leave empty to use default: {currentPreset.baseUrl}
                   </p>
                 </div>
 
@@ -437,7 +463,7 @@ export function ProjectSidebar({
                                   <div className="font-mono text-[10px] font-bold text-foreground">{model.label}</div>
                                   <div className="font-mono text-[9px] text-muted-foreground">{model.description}</div>
                                 </div>
-                                {model.supportsGrounding && (draft.provider === "openrouter" || draft.provider === "openai") && <Globe className="ml-auto h-3 w-3 shrink-0 text-primary/50" />}
+                                {model.supportsGrounding && (draft.provider === "openrouter" || draft.provider === "openai" || draft.provider === "local") && <Globe className="ml-auto h-3 w-3 shrink-0 text-primary/50" />}
                               </button>
                             ))}
                           </motion.div>
@@ -447,44 +473,81 @@ export function ProjectSidebar({
                   )}
                 </div>
 
-                {/* Web Grounding (OpenRouter + OpenAI) */}
-                {(draft.provider === "openrouter" || draft.provider === "openai") && selectedModel && (
-                  <div className="flex items-start justify-between gap-3 rounded-md border border-white/5 bg-white/[0.02] px-2.5 py-2.5">
-                    <div className="flex items-start gap-2">
-                      <Globe className="h-3.5 w-3.5 mt-0.5 text-primary/60 shrink-0" />
-                      <div>
-                        <div className="font-mono text-[11px] font-bold text-foreground">Web Grounding</div>
-                        <div className="font-mono text-[9px] text-muted-foreground mt-0.5 leading-relaxed">
-                          {selectedModel.supportsGrounding
-                            ? draft.provider === "openai"
-                              ? `Uses ${selectedModel.groundingModelId ?? "search-preview"} for live web access`
-                              : "Adds :online for live search"
-                            : "Not available for this model"}
+                {/* Web Grounding (OpenRouter + OpenAI + local SearXNG / fetcher-mcp) */}
+                {(draft.provider === "openrouter" || draft.provider === "openai" || draft.provider === "local") && selectedModel && (
+                  <div className="flex flex-col gap-2.5 rounded-md border border-white/5 bg-white/[0.02] px-2.5 py-2.5">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-2">
+                        <Globe className="h-3.5 w-3.5 mt-0.5 text-primary/60 shrink-0" />
+                        <div>
+                          <div className="font-mono text-[11px] font-bold text-foreground">Web Grounding</div>
+                          <div className="font-mono text-[9px] text-muted-foreground mt-0.5 leading-relaxed">
+                            {selectedModel.supportsGrounding
+                              ? draft.provider === "openai"
+                                ? `Uses ${selectedModel.groundingModelId ?? "search-preview"} for live web access`
+                                : draft.provider === "local"
+                                  ? "SearXNG search + fetcher-mcp page fetch (via your Next server)"
+                                  : "Adds :online for live search"
+                              : "Not available for this model"}
+                          </div>
                         </div>
                       </div>
+                      <button
+                        onClick={() => selectedModel.supportsGrounding && setDraft(d => ({ ...d, webGrounding: !d.webGrounding }))}
+                        disabled={!selectedModel.supportsGrounding}
+                        className={`relative shrink-0 h-5 w-9 rounded-full transition-all duration-200 ${
+                          draft.webGrounding && selectedModel.supportsGrounding ? "bg-primary" : "bg-white/10"
+                        } disabled:opacity-30 disabled:cursor-not-allowed`}
+                      >
+                        <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all duration-200 ${
+                          draft.webGrounding && selectedModel.supportsGrounding ? "left-5" : "left-0.5"
+                        }`} />
+                      </button>
                     </div>
-                    <button
-                      onClick={() => selectedModel.supportsGrounding && setDraft(d => ({ ...d, webGrounding: !d.webGrounding }))}
-                      disabled={!selectedModel.supportsGrounding}
-                      className={`relative shrink-0 h-5 w-9 rounded-full transition-all duration-200 ${
-                        draft.webGrounding && selectedModel.supportsGrounding ? "bg-primary" : "bg-white/10"
-                      } disabled:opacity-30 disabled:cursor-not-allowed`}
-                    >
-                      <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all duration-200 ${
-                        draft.webGrounding && selectedModel.supportsGrounding ? "left-5" : "left-0.5"
-                      }`} />
-                    </button>
+                    {draft.provider === "local" && selectedModel.supportsGrounding && (
+                      <div className="flex flex-col gap-2 pt-0.5 border-t border-white/5">
+                        <div className="flex flex-col gap-1">
+                          <label className="font-mono text-[8px] font-bold uppercase tracking-wider text-muted-foreground">SearXNG base URL</label>
+                          <input
+                            type="text"
+                            value={draft.localGroundingSearxUrl ?? ""}
+                            onChange={e => setDraft(d => ({ ...d, localGroundingSearxUrl: e.target.value }))}
+                            placeholder={DEFAULT_LOCAL_SEARX_URL}
+                            className="w-full rounded border border-white/10 bg-white/[0.04] px-2 py-1.5 font-mono text-[10px] text-foreground outline-none focus:border-primary/40"
+                            autoComplete="off"
+                            spellCheck={false}
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <label className="font-mono text-[8px] font-bold uppercase tracking-wider text-muted-foreground">Fetcher MCP URL</label>
+                          <input
+                            type="text"
+                            value={draft.localGroundingFetcherMcpUrl ?? ""}
+                            onChange={e => setDraft(d => ({ ...d, localGroundingFetcherMcpUrl: e.target.value }))}
+                            placeholder={DEFAULT_LOCAL_FETCHER_MCP_URL}
+                            className="w-full rounded border border-white/10 bg-white/[0.04] px-2 py-1.5 font-mono text-[10px] text-foreground outline-none focus:border-primary/40"
+                            autoComplete="off"
+                            spellCheck={false}
+                          />
+                        </div>
+                        <p className="font-mono text-[8px] text-muted-foreground/80 leading-relaxed">
+                          Empty fields use defaults. Your Next dev server must reach these hosts (e.g. same Tailscale network).
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
 
                 {/* API Status */}
                 <div className={`flex items-center gap-2 rounded-md px-2.5 py-2 font-mono text-[9px] ${
-                  draft.apiKey
+                  draft.apiKey || !keyIsRequired
                     ? "bg-primary/10 border border-primary/20 text-primary"
                     : "bg-white/5 border border-white/5 text-muted-foreground"
                 }`}>
-                  <span className={`h-1.5 w-1.5 rounded-full ${draft.apiKey ? "bg-primary animate-pulse" : "bg-white/30"}`} />
-                  {draft.apiKey ? `${currentPreset.label} — API key configured` : "No API key — AI disabled"}
+                  <span className={`h-1.5 w-1.5 rounded-full ${draft.apiKey || !keyIsRequired ? "bg-primary animate-pulse" : "bg-white/30"}`} />
+                  {keyIsRequired
+                    ? (draft.apiKey ? `${currentPreset.label} — API key configured` : "No API key — AI disabled")
+                    : `${currentPreset.label} — ready (API key optional)`}
                 </div>
               </motion.div>
             )}
