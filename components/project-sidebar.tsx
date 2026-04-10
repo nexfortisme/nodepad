@@ -23,6 +23,7 @@ import {
   AI_PROVIDER_PRESETS,
   getModelsForProvider,
   getPreset,
+  providerRequiresApiKey,
   type AISettings,
   type AIProvider,
 } from "@/lib/ai-settings"
@@ -132,6 +133,7 @@ export function ProjectSidebar({
   const currentPreset = getPreset(draft.provider)
   const models = getModelsForProvider(draft.provider)
   const selectedModel = models.find(m => m.id === draft.modelId) || models[0] || undefined
+  const keyIsRequired = providerRequiresApiKey(draft.provider)
 
   return (
     <div
@@ -352,7 +354,7 @@ export function ProjectSidebar({
                 {/* API Key */}
                 <div className="flex flex-col gap-2">
                   <label className="font-mono text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
-                    API Key
+                    API Key {keyIsRequired ? "" : "(Optional)"}
                   </label>
                   <div className="flex items-center gap-2 rounded-md border border-white/10 bg-white/[0.04] px-2.5 py-2 focus-within:border-primary/50 transition-colors">
                     <Key className="h-3 w-3 shrink-0 text-muted-foreground" />
@@ -372,12 +374,35 @@ export function ProjectSidebar({
                   </div>
                   <p className="font-mono text-[9px] text-muted-foreground leading-relaxed">
                     Stored locally. Never sent to a server.{" "}
-                    {currentPreset.keyUrl && (
+                    {currentPreset.keyUrl ? (
                       <a href={currentPreset.keyUrl} target="_blank" rel="noopener noreferrer"
                         className="text-primary underline hover:brightness-125 transition-all">
                         Get a key →
                       </a>
+                    ) : (
+                      <span>Not required for this provider.</span>
                     )}
+                  </p>
+                </div>
+
+                {/* Base URL (mainly for local/self-hosted providers) */}
+                <div className="flex flex-col gap-2">
+                  <label className="font-mono text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
+                    Base URL
+                  </label>
+                  <div className="flex items-center gap-2 rounded-md border border-white/10 bg-white/[0.04] px-2.5 py-2 focus-within:border-primary/50 transition-colors">
+                    <input
+                      type="text"
+                      value={draft.customBaseUrl}
+                      onChange={e => setDraft(d => ({ ...d, customBaseUrl: e.target.value }))}
+                      placeholder={currentPreset.baseUrl}
+                      className="flex-1 bg-transparent font-mono text-[11px] text-foreground outline-none placeholder:text-muted-foreground/40"
+                      autoComplete="off"
+                      spellCheck={false}
+                    />
+                  </div>
+                  <p className="font-mono text-[9px] text-muted-foreground leading-relaxed">
+                    Leave empty to use default: {currentPreset.baseUrl}
                   </p>
                 </div>
 
@@ -479,12 +504,14 @@ export function ProjectSidebar({
 
                 {/* API Status */}
                 <div className={`flex items-center gap-2 rounded-md px-2.5 py-2 font-mono text-[9px] ${
-                  draft.apiKey
+                  draft.apiKey || !keyIsRequired
                     ? "bg-primary/10 border border-primary/20 text-primary"
                     : "bg-white/5 border border-white/5 text-muted-foreground"
                 }`}>
-                  <span className={`h-1.5 w-1.5 rounded-full ${draft.apiKey ? "bg-primary animate-pulse" : "bg-white/30"}`} />
-                  {draft.apiKey ? `${currentPreset.label} — API key configured` : "No API key — AI disabled"}
+                  <span className={`h-1.5 w-1.5 rounded-full ${draft.apiKey || !keyIsRequired ? "bg-primary animate-pulse" : "bg-white/30"}`} />
+                  {keyIsRequired
+                    ? (draft.apiKey ? `${currentPreset.label} — API key configured` : "No API key — AI disabled")
+                    : `${currentPreset.label} — ready (API key optional)`}
                 </div>
               </motion.div>
             )}

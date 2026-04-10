@@ -13,7 +13,7 @@ import { IntroModal } from "@/components/intro-modal"
 import type { TextBlock } from "@/components/tile-card"
 import type { ContentType } from "@/lib/content-types"
 import { INITIAL_PROJECTS } from "@/lib/initial-data"
-import { useAISettings } from "@/lib/ai-settings"
+import { useAISettings, getPreset, providerRequiresApiKey } from "@/lib/ai-settings"
 import { enrichBlockClient } from "@/lib/ai-enrich"
 import { generateGhostClient } from "@/lib/ai-ghost"
 import { exportToMarkdown, downloadMarkdown, copyToClipboard } from "@/lib/export"
@@ -53,6 +53,8 @@ export default function Page() {
   const [showHelpTooltip, setShowHelpTooltip] = useState(false)
   const helpTooltipTimer = useRef<NodeJS.Timeout | null>(null)
   const { settings, updateSettings, resolvedModelId, currentModel, isHydrated } = useAISettings()
+  const keyIsRequired = providerRequiresApiKey(settings.provider)
+  const providerPreset = getPreset(settings.provider)
   const debounceTimers = useRef<Record<string, Record<string, NodeJS.Timeout>>>({})
 
   // ── Undo history ring (max 20 block snapshots per project) ───────────────
@@ -866,7 +868,7 @@ export default function Page() {
           onMenuClick={() => setIsSidebarOpen(!isSidebarOpen)}
           onIndexToggle={() => setIsIndexOpen(!isIndexOpen)}
           onGhostPanelToggle={() => setIsGhostPanelOpen(prev => !prev)}
-          modelLabel={isHydrated && settings.apiKey ? currentModel.shortLabel : undefined}
+          modelLabel={isHydrated && (!keyIsRequired || !!settings.apiKey) ? currentModel.shortLabel : undefined}
           showHelpTooltip={showHelpTooltip}
           onHelpTooltipDismiss={() => {
             setShowHelpTooltip(false)
@@ -874,9 +876,9 @@ export default function Page() {
           }}
         />
 
-        {isHydrated && !settings.apiKey && (
+        {isHydrated && keyIsRequired && !settings.apiKey && (
           <div className="flex items-center justify-center gap-3 px-4 py-2 bg-amber-950/80 border-b border-amber-800/60 text-amber-200 text-xs shrink-0">
-            <span className="opacity-80">⚡ AI enrichment requires an <strong className="text-amber-200">OpenRouter API key</strong> — use a free model (no credits needed) or add credits for GPT-4o, Claude, and more. Configure in the <strong className="text-amber-200">☰ left panel</strong>.</span>
+            <span className="opacity-80">⚡ AI enrichment requires an <strong className="text-amber-200">{providerPreset.label} API key</strong>. Configure it in the <strong className="text-amber-200">☰ left panel</strong>.</span>
             <div className="flex items-center gap-2 shrink-0">
               <button
                 onClick={() => { setIsSidebarOpen(true); setJumpToSettings(true) }}
@@ -884,14 +886,16 @@ export default function Page() {
               >
                 Add API key →
               </button>
-              <a
-                href="https://openrouter.ai/keys"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="opacity-60 hover:opacity-90 transition-opacity underline underline-offset-2"
-              >
-                Get a free key ↗
-              </a>
+              {providerPreset.keyUrl && (
+                <a
+                  href={providerPreset.keyUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="opacity-60 hover:opacity-90 transition-opacity underline underline-offset-2"
+                >
+                  Get API key ↗
+                </a>
+              )}
             </div>
           </div>
         )}

@@ -1,7 +1,8 @@
 "use client"
 
 import { detectContentType } from "@/lib/detect-content-type"
-import { loadAIConfig, getBaseUrl, getProviderHeaders, getModelsForProvider } from "@/lib/ai-settings"
+import { loadAIConfig, getModelsForProvider } from "@/lib/ai-settings"
+import { postChatCompletions } from "@/lib/ai-http"
 import type { ContentType } from "@/lib/content-types"
 
 // ── Provider error parser ─────────────────────────────────────────────────────
@@ -9,11 +10,26 @@ import type { ContentType } from "@/lib/content-types"
 /** Parses an error response from any OpenAI-compatible provider into a concise
  *  human-readable message. Handles OpenRouter-specific metadata (upstream
  *  provider name, rate limit type) and common HTTP error codes. */
+function extractErrorMessage(body: unknown): string | undefined {
+  if (!body || typeof body !== "object") return undefined
+  const b = body as Record<string, unknown>
+  const err = b.error
+  if (typeof err === "string") return err
+  if (err && typeof err === "object") {
+    const e = err as Record<string, unknown>
+    if (typeof e.message === "string") return e.message
+  }
+  if (typeof b.message === "string") return b.message
+  return undefined
+}
+
 export async function parseProviderError(response: Response): Promise<string> {
   let errObj: { message?: string; metadata?: { provider_name?: string } } | undefined
+  let extracted: string | undefined
   try {
     const body = await response.json()
-    errObj = body?.error
+    extracted = extractErrorMessage(body)
+    errObj = (body as { error?: typeof errObj }).error
   } catch { /* couldn't parse JSON — fall through */ }
 
   const providerName = errObj?.metadata?.provider_name
@@ -25,6 +41,9 @@ export async function parseProviderError(response: Response): Promise<string> {
       return "Insufficient credits. Add credits to your account or switch to a free model."
     case 403:
       return "Content flagged by the provider's safety filter."
+    case 400:
+      if (extracted) return extracted
+      return "Bad request — check Base URL (use …/v1), model id, and LM Studio server logs."
     case 404:
       return "This model is no longer available. Switch to another model in Settings."
     case 408:
@@ -41,7 +60,7 @@ export async function parseProviderError(response: Response): Promise<string> {
       }
       return "The AI provider is temporarily unavailable. Try again."
     default:
-      return errObj?.message ?? `Request failed (${response.status}). Check your settings.`
+      return extracted ?? errObj?.message ?? `Request failed (${response.status}). Check your settings.`
   }
 }
 
@@ -346,11 +365,7 @@ You have live web access. For this note type, include 1–2 real source citation
   // Enrichment JSON is compact — annotation ~120 words plus fields fits in 1200.
   const MAX_ENRICH_OUTPUT_TOKENS = 1200
 
-  const baseUrl = getBaseUrl(config)
-  const response = await fetch(`${baseUrl}/chat/completions`, {
-    method: "POST",
-    headers: getProviderHeaders(config),
-    body: JSON.stringify({
+  const response = await postChatCompletions(config, {
       model,
       max_tokens: MAX_ENRICH_OUTPUT_TOKENS,
       messages: [
@@ -368,7 +383,6 @@ You have live web access. For this note type, include 1–2 real source citation
             temperature: 0.1,
           }
         : { web_search_options: webSearchOptions }),
-    }),
   })
 
   if (!response.ok) {

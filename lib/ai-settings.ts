@@ -12,14 +12,15 @@ export interface AIModel {
   groundingModelId?: string
 }
 
-export type AIProvider = "openrouter" | "openai" | "zai"
+export type AIProvider = "openrouter" | "openai" | "zai" | "local"
 
 export interface AIProviderPreset {
   id: AIProvider
   label: string
   baseUrl: string
-  keyUrl: string
+  keyUrl?: string
   keyPlaceholder: string
+  requiresApiKey: boolean
 }
 
 export const AI_PROVIDER_PRESETS: AIProviderPreset[] = [
@@ -29,6 +30,7 @@ export const AI_PROVIDER_PRESETS: AIProviderPreset[] = [
     baseUrl: "https://openrouter.ai/api/v1",
     keyUrl: "https://openrouter.ai/settings/keys",
     keyPlaceholder: "sk-or-v1-...",
+    requiresApiKey: true,
   },
   {
     id: "openai",
@@ -36,6 +38,7 @@ export const AI_PROVIDER_PRESETS: AIProviderPreset[] = [
     baseUrl: "https://api.openai.com/v1",
     keyUrl: "https://platform.openai.com/api-keys",
     keyPlaceholder: "sk-...",
+    requiresApiKey: true,
   },
   {
     id: "zai",
@@ -43,6 +46,14 @@ export const AI_PROVIDER_PRESETS: AIProviderPreset[] = [
     baseUrl: "https://api.z.ai/api/paas/v4",
     keyUrl: "https://z.ai/manage-apikey/apikey-list",
     keyPlaceholder: "Your Z.ai API key",
+    requiresApiKey: true,
+  },
+  {
+    id: "local",
+    label: "Local (LM Studio)",
+    baseUrl: "http://127.0.0.1:1234/v1",
+    keyPlaceholder: "Not required (optional)",
+    requiresApiKey: false,
   },
 ]
 
@@ -174,9 +185,20 @@ export const ZAI_MODELS: AIModel[] = [
   },
 ]
 
+export const LOCAL_MODELS: AIModel[] = [
+  {
+    id: "google/gemma-4-26b-a4b",
+    label: "Gemma 4 26B",
+    shortLabel: "Gemma 4",
+    description: "Local model via LM Studio (OpenAI-compatible API)",
+    supportsGrounding: false,
+  },
+]
+
 export function getModelsForProvider(provider: AIProvider): AIModel[] {
   if (provider === "openai") return OPENAI_MODELS
   if (provider === "zai")    return ZAI_MODELS
+  if (provider === "local")  return LOCAL_MODELS
   return AI_MODELS // openrouter + safe fallback for any stale localStorage value
 }
 
@@ -216,9 +238,13 @@ export interface AIConfig {
   customBaseUrl: string
 }
 
+export function providerRequiresApiKey(provider: AIProvider): boolean {
+  return getPreset(provider).requiresApiKey
+}
+
 export function loadAIConfig(): AIConfig | null {
   const s = loadSettings()
-  if (!s.apiKey) return null
+  if (providerRequiresApiKey(s.provider) && !s.apiKey) return null
   const models = getModelsForProvider(s.provider)
   const model = models.find(m => m.id === s.modelId)
   // Use the matched model's id if found; otherwise fall back to the first model
@@ -235,13 +261,13 @@ export function loadAIConfig(): AIConfig | null {
 }
 
 export function getBaseUrl(config: AIConfig): string {
-  return getPreset(config.provider).baseUrl
+  return config.customBaseUrl.trim() || getPreset(config.provider).baseUrl
 }
 
 export function getProviderHeaders(config: AIConfig): Record<string, string> {
-  const base: Record<string, string> = {
-    "Content-Type": "application/json",
-    "Authorization": `Bearer ${config.apiKey}`,
+  const base: Record<string, string> = { "Content-Type": "application/json" }
+  if (config.apiKey.trim()) {
+    base["Authorization"] = `Bearer ${config.apiKey}`
   }
   if (config.provider === "openrouter") {
     base["HTTP-Referer"] = "https://nodepad.space"

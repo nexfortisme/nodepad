@@ -1,6 +1,7 @@
 "use client"
 
-import { loadAIConfig, getBaseUrl, getProviderHeaders } from "@/lib/ai-settings"
+import { loadAIConfig } from "@/lib/ai-settings"
+import { postChatCompletions } from "@/lib/ai-http"
 import { parseProviderError } from "@/lib/ai-enrich"
 
 export interface GhostContext {
@@ -55,17 +56,12 @@ Return ONLY valid JSON:
   // Cap output to keep cost low and avoid 402 on limited-credit accounts.
   const MAX_GHOST_OUTPUT_TOKENS = 220
 
-  const baseUrl = getBaseUrl(config)
-  const response = await fetch(`${baseUrl}/chat/completions`, {
-    method: "POST",
-    headers: getProviderHeaders(config),
-    body: JSON.stringify({
+  const response = await postChatCompletions(config, {
       model,
       max_tokens: MAX_GHOST_OUTPUT_TOKENS,
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
       temperature: 0.7,
-    }),
   })
 
   if (!response.ok) {
