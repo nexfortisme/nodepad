@@ -26,7 +26,7 @@ Three views: **tiling** (spatial BSP grid), **kanban** (grouped by type), **grap
 
 ## Setup
 
-**Requirements**: a desktop browser and an API key from one of the supported providers.
+**Requirements**: a desktop browser, plus either an API key from a cloud provider or a local OpenAI-compatible LLM (for example [LM Studio](https://lmstudio.ai/) serving Chat Completions on localhost).
 
 ```bash
 git clone https://github.com/mskayyali/nodepad.git
@@ -37,9 +37,19 @@ npm run dev
 
 Open [localhost:3000](http://localhost:3000).
 
-**Add your API key**: click the menu icon (top-left) → Settings → choose your provider → paste your key. The key is stored in your browser's `localStorage` and goes directly to the AI provider — it never passes through any server.
+**Cloud providers (OpenRouter, OpenAI, Z.ai)**: menu (top-left) → Settings → pick the provider → paste your key. Keys live in the browser (`localStorage`) and are sent straight from the browser to that provider — they are not stored on a nodepad server.
 
-**Enable web grounding** (optional): toggle "Web grounding" in Settings to let the AI cite real sources for claims, questions, and references. Supported on OpenRouter `:online` models and OpenAI search-preview models.
+**Local (LM Studio)**: choose **Local (LM Studio)** in Settings. No API key is required unless your local server expects one (optional). The default base URL is `http://127.0.0.1:1234/v1`; override **Base URL** if your server uses another port or path (still must be reachable from the machine running Next.js). Because many local servers do not allow browser `fetch` from the app origin, chat requests are sent to your Next.js app at `/api/ai-proxy`, which forwards them to **localhost only** (loopback hostnames are enforced).
+
+**Enable web grounding** (optional): toggle **Web grounding** in Settings so the model can use retrieved web text when enriching truth-heavy note types.
+
+| Provider | How grounding works |
+|---|---|
+| **OpenRouter** | `:online` variant of supported models (provider-native search). |
+| **OpenAI** | Search-preview models when you pick a grounding-capable model. |
+| **Local** | Your Next.js server calls **[SearXNG](https://docs.searxng.org/)** for JSON search results, then **[fetcher-mcp](https://github.com/jae-jae/fetcher-mcp)** (or any compatible MCP server) over **Streamable HTTP** using the `fetch_url` tool to pull excerpts from the top hits. The browser invokes `/api/local-ground`; configure **SearXNG base URL** and **Fetcher MCP URL** in Settings. If either URL is invalid, local grounding stays off. Empty fields fall back to defaults in `lib/local-grounding.ts` — replace those with your own endpoints (for example a VPN or LAN address if SearXNG and MCP run elsewhere). |
+
+Your SearXNG instance must accept `format=json` on `/search` (the app requests JSON results). The MCP endpoint is the Streamable HTTP URL (often ending in `/mcp`), not the SSE transport.
 
 ---
 
@@ -84,6 +94,13 @@ GLM models from Zhipu AI. Get a key at [z.ai](https://z.ai/manage-apikey/apikey-
 | `glm-5` | Z.ai flagship model. |
 | `glm-5-turbo` | Fast, community-tested. |
 
+### Local (LM Studio)
+Use any OpenAI-compatible **Chat Completions** server on localhost. The UI preset targets LM Studio’s default port.
+
+| Model | Notes |
+|---|---|
+| `google/gemma-4-26b-a4b` | Listed for local use; supports **Web grounding** when SearXNG + fetcher-mcp are configured (see Setup). |
+
 ---
 
 ## Keyboard shortcuts
@@ -101,8 +118,9 @@ Double-click any note to edit. Click the type label to reclassify manually.
 
 ## Data
 
-Everything lives in your browser. No account, no server, no database.
+Note data and settings live in your browser. No account or hosted database.
 
+- With the **Local** provider or **Web grounding** (local), your Next.js dev server calls the URLs you configure: `/api/ai-proxy` forwards chat to **localhost only**; `/api/local-ground` contacts SearXNG and the fetcher MCP. No separate nodepad backend is involved.
 - Notes are persisted to `localStorage` under `nodepad-projects`
 - A silent rolling backup is written on every change to `nodepad-backup`
 - Export to `.md` or `.nodepad` (versioned JSON) via `⌘K`
@@ -112,7 +130,7 @@ Everything lives in your browser. No account, no server, no database.
 
 ## Tech
 
-Next.js · React 19 · TypeScript · Tailwind CSS v4 · D3.js · Framer Motion
+Next.js · React 19 · TypeScript · Tailwind CSS v4 · D3.js · Framer Motion · [`@modelcontextprotocol/sdk`](https://www.npmjs.com/package/@modelcontextprotocol/sdk) (local web grounding → fetcher-mcp)
 
 ---
 
