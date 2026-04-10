@@ -1,6 +1,11 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
+import {
+  DEFAULT_LOCAL_FETCHER_MCP_URL,
+  DEFAULT_LOCAL_SEARX_URL,
+  parseHttpServiceBase,
+} from "@/lib/local-grounding"
 
 export interface AIModel {
   id: string
@@ -191,7 +196,7 @@ export const LOCAL_MODELS: AIModel[] = [
     label: "Gemma 4 26B",
     shortLabel: "Gemma 4",
     description: "Local model via LM Studio (OpenAI-compatible API)",
-    supportsGrounding: false,
+    supportsGrounding: true,
   },
 ]
 
@@ -211,22 +216,36 @@ export interface AISettings {
   webGrounding: boolean
   provider: AIProvider
   customBaseUrl: string
+  /** SearXNG base URL (`format=json` must be enabled). Empty uses default in lib/local-grounding. */
+  localGroundingSearxUrl?: string
+  /** fetcher-mcp Streamable HTTP URL (e.g. …/mcp). Empty uses default in lib/local-grounding. */
+  localGroundingFetcherMcpUrl?: string
   /** Per-provider key store so switching back to a provider restores its key */
   providerKeys?: Partial<Record<AIProvider, string>>
 }
 
 const STORAGE_KEY = "nodepad-ai-settings"
 
+const SETTINGS_TEMPLATE: AISettings = {
+  apiKey: "",
+  modelId: DEFAULT_MODEL_ID,
+  webGrounding: false,
+  provider: DEFAULT_PROVIDER,
+  customBaseUrl: "",
+  localGroundingSearxUrl: "",
+  localGroundingFetcherMcpUrl: "",
+}
+
 function loadSettings(): AISettings {
   if (typeof window === "undefined") {
-    return { apiKey: "", modelId: DEFAULT_MODEL_ID, webGrounding: false, provider: DEFAULT_PROVIDER, customBaseUrl: "" }
+    return { ...SETTINGS_TEMPLATE }
   }
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return { apiKey: "", modelId: DEFAULT_MODEL_ID, webGrounding: false, provider: DEFAULT_PROVIDER, customBaseUrl: "" }
-    return { apiKey: "", modelId: DEFAULT_MODEL_ID, webGrounding: false, provider: DEFAULT_PROVIDER, customBaseUrl: "", ...JSON.parse(raw) }
+    if (!raw) return { ...SETTINGS_TEMPLATE }
+    return { ...SETTINGS_TEMPLATE, ...JSON.parse(raw) }
   } catch {
-    return { apiKey: "", modelId: DEFAULT_MODEL_ID, webGrounding: false, provider: DEFAULT_PROVIDER, customBaseUrl: "" }
+    return { ...SETTINGS_TEMPLATE }
   }
 }
 
@@ -236,6 +255,10 @@ export interface AIConfig {
   supportsGrounding: boolean
   provider: AIProvider
   customBaseUrl: string
+  /** Resolved SearXNG base when provider is local (for server-side grounding). */
+  localGroundingSearxUrl: string
+  /** Resolved fetcher-mcp endpoint when provider is local. */
+  localGroundingFetcherMcpUrl: string
 }
 
 export function providerRequiresApiKey(provider: AIProvider): boolean {
@@ -252,12 +275,25 @@ export function loadAIConfig(): AIConfig | null {
   // OpenRouter-prefixed id (e.g. "openai/gpt-4o") after switching to OpenAI —
   // that string won't match any entry in OPENAI_MODELS so we fall back to "gpt-4o".
   const modelId = model?.id ?? models[0]?.id ?? s.modelId ?? DEFAULT_MODEL_ID
-  // Z.ai does not support grounding; only openrouter and openai do
+  const modelGroundOk = (model?.supportsGrounding ?? false) && s.webGrounding
+  const searxResolved = (s.localGroundingSearxUrl?.trim() || DEFAULT_LOCAL_SEARX_URL)
+  const mcpResolved = (s.localGroundingFetcherMcpUrl?.trim() || DEFAULT_LOCAL_FETCHER_MCP_URL)
+  const localGroundingUrlsOk =
+    parseHttpServiceBase(searxResolved) != null && parseHttpServiceBase(mcpResolved) != null
+  // Z.ai: no grounding. Cloud: OpenRouter / OpenAI native search. Local: SearXNG + fetcher-mcp via /api/local-ground.
   const supportsGrounding =
-    (s.provider === "openrouter" || s.provider === "openai") &&
-    s.webGrounding &&
-    (model?.supportsGrounding ?? false)
-  return { apiKey: s.apiKey, modelId, supportsGrounding, provider: s.provider, customBaseUrl: s.customBaseUrl }
+    modelGroundOk &&
+    ((s.provider === "openrouter" || s.provider === "openai") ||
+      (s.provider === "local" && localGroundingUrlsOk))
+  return {
+    apiKey: s.apiKey,
+    modelId,
+    supportsGrounding,
+    provider: s.provider,
+    customBaseUrl: s.customBaseUrl,
+    localGroundingSearxUrl: searxResolved,
+    localGroundingFetcherMcpUrl: mcpResolved,
+  }
 }
 
 export function getBaseUrl(config: AIConfig): string {
@@ -298,6 +334,7 @@ export function useAISettings() {
   const [settings, setSettings] = useState<AISettings>({
     apiKey: "", modelId: DEFAULT_MODEL_ID, webGrounding: false,
     provider: DEFAULT_PROVIDER, customBaseUrl: "",
+    localGroundingSearxUrl: "", localGroundingFetcherMcpUrl: "",
   })
   const [isHydrated, setIsHydrated] = useState(false)
 

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useCallback } from "react"
-import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
+import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet"
 import { CONTENT_TYPE_CONFIG } from "@/lib/content-types"
 import {
   Sparkles, Layers, Kanban, GitFork, FolderDown,
@@ -103,6 +103,9 @@ export function AboutPanel({ open, onClose }: AboutPanelProps) {
         className="w-full sm:max-w-2xl flex flex-col gap-0 p-0 bg-card border-l border-border z-[200] overflow-hidden"
       >
         <SheetTitle className="sr-only">About nodepad</SheetTitle>
+        <SheetDescription className="sr-only">
+          Shortcuts, features, content types, and how nodepad uses AI. No chat — enrichment runs from what you write on the canvas.
+        </SheetDescription>
 
         {/* Header */}
         <div className="flex-shrink-0 px-8 pt-8 pb-6 border-b border-border">

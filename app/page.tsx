@@ -667,7 +667,13 @@ export default function Page() {
 
     updateActiveProject(p => ({
       ...p,
-      blocks: p.blocks.map(b => b.id === id ? { ...b, category: newCategory, isEnriching: true } : b)
+      blocks: p.blocks.map(b => b.id === id ? {
+        ...b,
+        ...(newCategory !== undefined ? { category: newCategory } : {}),
+        isEnriching: true,
+        isError: false,
+        statusText: undefined,
+      } : b)
     }))
 
     enrichBlock(activeProjectId, id, block.text, newCategory || block.category, block.contentType).catch(console.error)
